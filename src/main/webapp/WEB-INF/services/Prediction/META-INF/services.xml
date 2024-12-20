@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<service name="dbx">
+    <description>
+        Make Prediction with Regression model
+    </description>
+    <parameter name="ServiceClass">com.dbx.DbxImplementation</parameter>
+    
+    <operation name="makePrediction">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+    
+    <operation name="connectDatabase">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+    
+    <operation name="modelState">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+
+    <operation name="createAndTrainModel">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+    
+    <operation name="makePredictionv2">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+</service>
