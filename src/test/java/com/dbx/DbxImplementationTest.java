@@ -37,7 +37,7 @@ class DbxImplementationTest {
         String modelName = "testModel";
         String expectedResponse = "{\"status\":\"success\"}";
 
-        when(httpClient.send(any(), any())).thenReturn(httpResponse);
+        when(httpClient.send(any(), any())).thenReturn((HttpResponse) httpResponse);
         when(httpResponse.body()).thenReturn(expectedResponse);
 
         String response = dbxImplementation.modelState(modelName);
@@ -51,7 +51,7 @@ class DbxImplementationTest {
         String tableName = "testTable";
         String columnToPredict = "testColumn";
 
-        when(httpClient.send(any(), any())).thenReturn(httpResponse);
+        when(httpClient.send(any(), any())).thenReturn((HttpResponse) httpResponse);
 
         String response = dbxImplementation.createAndTrainModel(modelName, databaseName, tableName, columnToPredict);
         assertEquals("Model created and getting trained successfully", response);
@@ -68,7 +68,7 @@ class DbxImplementationTest {
         String schema = "public";
         String expectedResponse = "{\"status\":\"connected\"}";
 
-        when(httpClient.send(any(), any())).thenReturn(httpResponse);
+        when(httpClient.send(any(), any())).thenReturn((HttpResponse) httpResponse);
         when(httpResponse.body()).thenReturn(expectedResponse);
 
         String response = dbxImplementation.connectDatabase(user, password, host, port, databaseName, engine, schema);
@@ -83,7 +83,7 @@ class DbxImplementationTest {
         conditions.put("condition1", "value1");
         String expectedResponse = "{\"prediction\":\"value\"}";
 
-        when(httpClient.send(any(), any())).thenReturn(httpResponse);
+        when(httpClient.send(any(), any())).thenReturn((HttpResponse) httpResponse);
         when(httpResponse.body()).thenReturn(expectedResponse);
 
         String response = dbxImplementation.makePrediction(modelName, targetColumn, conditions);
@@ -98,7 +98,7 @@ class DbxImplementationTest {
         conditions.put("condition1", "value1");
         String expectedResponse = "{\"prediction\":\"value\"}";
 
-        when(httpClient.send(any(), any())).thenReturn(httpResponse);
+        when(httpClient.send(any(), any())).thenReturn((HttpResponse) httpResponse);
         when(httpResponse.body()).thenReturn(expectedResponse);
 
         String response = dbxImplementation.makePredictionv2(modelName, targetColumn, conditions);

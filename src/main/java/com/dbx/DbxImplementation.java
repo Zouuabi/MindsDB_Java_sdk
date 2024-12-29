@@ -28,6 +28,17 @@ public class DbxImplementation {
     }
 
     /**
+     * Constructor for testing purposes.
+     *
+     * @param httpClient the HttpClient to use
+     * @param objectMapper the ObjectMapper to use
+     */
+    public DbxImplementation(HttpClient httpClient, ObjectMapper objectMapper) {
+        this.httpClient = httpClient;
+        this.objectMapper = objectMapper;
+    }
+
+    /**
      * Retrieves the state of a specified model.
      *
      * @param modelName the name of the model
