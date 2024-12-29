@@ -10,21 +10,32 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Implementation class for interacting with the MindsDB API.
+ */
 public class DbxImplementation {
+    private static final String BASE_URL = "http://127.0.0.1:47334/api";
+    private static final Duration TIMEOUT = Duration.ofSeconds(20);
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
     public DbxImplementation() {
-
         this.httpClient = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NORMAL)
-            .connectTimeout(Duration.ofSeconds(20))
+            .connectTimeout(TIMEOUT)
             .build();
         this.objectMapper = new ObjectMapper();
     }
 
+    /**
+     * Retrieves the state of a specified model.
+     *
+     * @param modelName the name of the model
+     * @return the model state as a JSON string
+     * @throws Exception if an error occurs during the request
+     */
     public String modelState(String modelName) throws Exception {
-        String url = "http://127.0.0.1:47334/api/projects/mindsdb/models/" + modelName + "/describe";
+        String url = String.format("%s/projects/mindsdb/models/%s/describe", BASE_URL, modelName);
 
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("attribute", "info");
@@ -36,26 +47,34 @@ public class DbxImplementation {
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
             .method("GET", HttpRequest.BodyPublishers.ofString(jsonBody))
-            .timeout(Duration.ofSeconds(20))
+            .timeout(TIMEOUT)
             .build();
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         return response.body();
     }
 
+    /**
+     * Creates and trains a new model.
+     *
+     * @param modelName the name of the model
+     * @param databaseName the name of the database
+     * @param tableName the name of the table
+     * @param columnToPredict the column to predict
+     * @return a success message
+     * @throws Exception if an error occurs during the request
+     */
     public String createAndTrainModel(String modelName, String databaseName, String tableName, String columnToPredict) throws Exception {
-        String url = "http://127.0.0.1:47334/api/projects/mindsdb/models";
+        String url = String.format("%s/projects/mindsdb/models", BASE_URL);
 
-        // Create the SQL query with proper escaping
         String sqlQuery = String.format(
             "CREATE MODEL mindsdb.%s FROM %s (SELECT * FROM %s) PREDICT %s;",
             modelName, databaseName, tableName, columnToPredict
         );
 
-        // Use ObjectNode for better control over JSON structure
         ObjectNode requestBody = objectMapper.createObjectNode();
         requestBody.put("query", sqlQuery);
-        requestBody.put("using", objectMapper.createObjectNode());  // Add empty using object if needed
+        requestBody.put("using", objectMapper.createObjectNode());
 
         String jsonBody = objectMapper.writeValueAsString(requestBody);
 
@@ -64,26 +83,39 @@ public class DbxImplementation {
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-            .timeout(Duration.ofSeconds(20))
+            .timeout(TIMEOUT)
             .build();
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        return "Model created and Getting trained successfully";
+        httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        return "Model created and getting trained successfully";
     }
 
-    public String connectDatabase(String user, String password, String host, String port, String databasename, String engine, String schema) throws Exception {
-        String url = "http://127.0.0.1:47334/api/databases";
+    /**
+     * Connects to a specified database.
+     *
+     * @param user the database user
+     * @param password the database password
+     * @param host the database host
+     * @param port the database port
+     * @param databaseName the name of the database
+     * @param engine the database engine
+     * @param schema the database schema
+     * @return the response body as a JSON string
+     * @throws Exception if an error occurs during the request
+     */
+    public String connectDatabase(String user, String password, String host, String port, String databaseName, String engine, String schema) throws Exception {
+        String url = String.format("%s/databases", BASE_URL);
 
         Map<String, Object> parameters = new HashMap<>();
         parameters.put("user", user);
         parameters.put("password", password);
         parameters.put("host", host);
         parameters.put("port", port);
-        parameters.put("database", databasename);
+        parameters.put("database", databaseName);
         parameters.put("schema", schema);
 
         Map<String, Object> databaseConfig = new HashMap<>();
-        databaseConfig.put("name", databasename);
+        databaseConfig.put("name", databaseName);
         databaseConfig.put("engine", engine);
         databaseConfig.put("parameters", parameters);
 
@@ -97,90 +129,99 @@ public class DbxImplementation {
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-            .timeout(Duration.ofSeconds(20))
+            .timeout(TIMEOUT)
             .build();
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         return response.body();
     }
 
-public String makePredictionv2(String modelName, String targetColumn, Map<String, Object> conditions) throws Exception {
-    Map<String, Object> requestBody = new HashMap<>();
-    
-    // Build the WHERE clause from conditions
-    StringBuilder whereClause = new StringBuilder();
-    for (Map.Entry<String, Object> condition : conditions.entrySet()) {
-        if (whereClause.length() > 0) {
-            whereClause.append(" AND ");
-        }
-        whereClause.append(condition.getKey())
-                  .append("="); // Start the condition
-
-        // Check if the value is a String or a Number
-        Object value = condition.getValue();
-        if (value instanceof Number) {
-            whereClause.append(value); // No quotes for numbers
-        } else {
-            whereClause.append("'").append(value).append("'"); // Add quotes for strings
-        }
+    /**
+     * Makes a prediction using the specified model and conditions.
+     *
+     * @param modelName the name of the model
+     * @param targetColumn the target column to predict
+     * @param conditions the conditions for the prediction
+     * @return the prediction result as a JSON string
+     * @throws Exception if an error occurs during the request
+     */
+    public String makePrediction(String modelName, String targetColumn, Map<String, String> conditions) throws Exception {
+        String query = buildQuery(modelName, targetColumn, conditions);
+        return executeQuery(query);
     }
-    
-    // Construct the query
-    String query = String.format(
-        "SELECT %s FROM mindsdb.%s WHERE %s;",
-        targetColumn,
-        modelName,
-        whereClause.toString()
-    );
-    
-    requestBody.put("query", query);
-    String jsonBody = objectMapper.writeValueAsString(requestBody);
 
-    HttpRequest request = HttpRequest.newBuilder()
-        .uri(URI.create("http://127.0.0.1:47334/api/sql/query"))
-        .header("Content-Type", "application/json")
-        .header("Accept", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-        .timeout(Duration.ofSeconds(20))
-        .build();
-
-    HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-    return response.body();
-}
-   public String makePrediction(String modelName, String targetColumn, Map<String, String> conditions) throws Exception {
-    Map<String, Object> requestBody = new HashMap<>();
-    
-
-    StringBuilder whereClause = new StringBuilder();
-    for (Map.Entry<String, String> condition : conditions.entrySet()) {
-        if (whereClause.length() > 0) {
-            whereClause.append(" AND ");
-        }
-        whereClause.append(condition.getKey())
-                  .append("=")
-                  .append(condition.getValue());
+    /**
+     * Makes a prediction using the specified model and conditions (version 2).
+     *
+     * @param modelName the name of the model
+     * @param targetColumn the target column to predict
+     * @param conditions the conditions for the prediction
+     * @return the prediction result as a JSON string
+     * @throws Exception if an error occurs during the request
+     */
+    public String makePredictionv2(String modelName, String targetColumn, Map<String, Object> conditions) throws Exception {
+        String query = buildQueryV2(modelName, targetColumn, conditions);
+        return executeQuery(query);
     }
-    
- 
-    String query = String.format(
-        "SELECT %s FROM mindsdb.%s WHERE %s;",
-        targetColumn,
-        modelName,
-        whereClause.toString()
-    );
-    
-    requestBody.put("query", query);
-    String jsonBody = objectMapper.writeValueAsString(requestBody);
 
-    HttpRequest request = HttpRequest.newBuilder()
-        .uri(URI.create("http://127.0.0.1:47334/api/sql/query"))
-        .header("Content-Type", "application/json")
-        .header("Accept", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-        .timeout(Duration.ofSeconds(10))
-        .build();
+    private String buildQuery(String modelName, String targetColumn, Map<String, String> conditions) {
+        StringBuilder whereClause = new StringBuilder();
+        for (Map.Entry<String, String> condition : conditions.entrySet()) {
+            if (whereClause.length() > 0) {
+                whereClause.append(" AND ");
+            }
+            whereClause.append(condition.getKey())
+                      .append("=")
+                      .append(condition.getValue());
+        }
 
-    HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-    return response.body();
-}
+        return String.format(
+            "SELECT %s FROM mindsdb.%s WHERE %s;",
+            targetColumn,
+            modelName,
+            whereClause.toString()
+        );
+    }
+
+    private String buildQueryV2(String modelName, String targetColumn, Map<String, Object> conditions) {
+        StringBuilder whereClause = new StringBuilder();
+        for (Map.Entry<String, Object> condition : conditions.entrySet()) {
+            if (whereClause.length() > 0) {
+                whereClause.append(" AND ");
+            }
+            whereClause.append(condition.getKey())
+                      .append("=");
+
+            Object value = condition.getValue();
+            if (value instanceof Number) {
+                whereClause.append(value);
+            } else {
+                whereClause.append("'").append(value).append("'");
+            }
+        }
+
+        return String.format(
+            "SELECT %s FROM mindsdb.%s WHERE %s;",
+            targetColumn,
+            modelName,
+            whereClause.toString()
+        );
+    }
+
+    private String executeQuery(String query) throws Exception {
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("query", query);
+        String jsonBody = objectMapper.writeValueAsString(requestBody);
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(String.format("%s/sql/query", BASE_URL)))
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+            .timeout(TIMEOUT)
+            .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        return response.body();
+    }
 }
