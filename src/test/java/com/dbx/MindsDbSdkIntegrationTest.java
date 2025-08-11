@@ -12,6 +12,7 @@ import org.mockito.MockitoAnnotations;
 
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -29,44 +30,49 @@ class MindsDbSdkIntegrationTest {
     @Mock
     private HttpResponse<String> httpResponse;
 
-    private DbxImplementation sdk;
+    private MindsDbSdk sdk;
     private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
         objectMapper = new ObjectMapper();
-        sdk = new DbxImplementation(httpClient, objectMapper);
+        sdk = new MindsDbSdk("http://test.mindsdb.com/api", Duration.ofSeconds(30), httpClient, objectMapper);
     }
 
     @Test
     @DisplayName("Complete ML Workflow: Connect DB -> Create Model -> Train -> Predict")
     void testCompleteMLWorkflow() throws Exception {
         // Mock responses for each step
-        when(httpClient.send(any(), any())).thenReturn((HttpResponse) httpResponse);
+        when(httpClient.send(any(), any())).thenReturn(httpResponse);
+        when(httpResponse.statusCode()).thenReturn(200);
         
         // Step 1: Connect to database
         when(httpResponse.body()).thenReturn("{\"status\":\"connected\"}");
-        String connectResult = sdk.connectDatabase("user", "pass", "localhost", "5432", "sales_db", "postgres", "public");
-        assertNotNull(connectResult);
+        MindsDbResponse connectResult = sdk.connectDatabase("user", "pass", "localhost", "5432", "sales_db", "postgres", "public");
+        assertTrue(connectResult.isSuccess());
         
         // Step 2: Create and train model
         when(httpResponse.body()).thenReturn("{\"status\":\"training\"}");
-        String createResult = sdk.createAndTrainModel("sales_predictor", "sales_db", "sales_data", "revenue");
-        assertEquals("Model created and getting trained successfully", createResult);
+        MindsDbResponse createResult = sdk.createAndTrainModel("sales_predictor", "sales_db", "sales_data", "revenue");
+        assertTrue(createResult.isSuccess());
+        assertEquals("Model created and training started successfully", createResult.getMessage());
         
         // Step 3: Check model state
         when(httpResponse.body()).thenReturn("{\"status\":\"complete\",\"accuracy\":0.92}");
-        String stateResult = sdk.modelState("sales_predictor");
-        assertNotNull(stateResult);
+        MindsDbResponse stateResult = sdk.getModelState("sales_predictor");
+        assertTrue(stateResult.isSuccess());
+        assertEquals("complete", stateResult.getStringField("status"));
+        assertEquals(0.92, stateResult.getDoubleField("accuracy"), 0.001);
         
         // Step 4: Make prediction
         Map<String, Object> conditions = new HashMap<>();
         conditions.put("product_category", "electronics");
         conditions.put("season", "holiday");
         when(httpResponse.body()).thenReturn("{\"revenue\":15000.50}");
-        String predictionResult = sdk.makePredictionv2("sales_predictor", "revenue", conditions);
-        assertNotNull(predictionResult);
+        MindsDbResponse predictionResult = sdk.makePrediction("sales_predictor", "revenue", conditions);
+        assertTrue(predictionResult.isSuccess());
+        assertEquals(15000.50, predictionResult.getDoubleField("revenue"), 0.01);
         
         // Verify all interactions
         verify(httpClient, times(4)).send(any(), any());
@@ -75,27 +81,28 @@ class MindsDbSdkIntegrationTest {
     @Test
     @DisplayName("Database Management Workflow: List -> Connect -> Get Tables -> Get Schema")
     void testDatabaseManagementWorkflow() throws Exception {
-        when(httpClient.send(any(), any())).thenReturn((HttpResponse) httpResponse);
+        when(httpClient.send(any(), any())).thenReturn(httpResponse);
+        when(httpResponse.statusCode()).thenReturn(200);
         
         // List existing databases
         when(httpResponse.body()).thenReturn("{\"databases\":[{\"name\":\"existing_db\"}]}");
-        String listResult = sdk.listDatabases();
-        assertNotNull(listResult);
+        MindsDbResponse listResult = sdk.listDatabases();
+        assertTrue(listResult.isSuccess());
         
         // Connect new database
         when(httpResponse.body()).thenReturn("{\"status\":\"connected\"}");
-        String connectResult = sdk.connectDatabase("admin", "secret", "db.example.com", "3306", "new_db", "mysql", "main");
-        assertNotNull(connectResult);
+        MindsDbResponse connectResult = sdk.connectDatabase("admin", "secret", "db.example.com", "3306", "new_db", "mysql", "main");
+        assertTrue(connectResult.isSuccess());
         
         // Get tables from database
         when(httpResponse.body()).thenReturn("{\"tables\":[{\"name\":\"customers\"},{\"name\":\"orders\"}]}");
-        String tablesResult = sdk.getTables("new_db");
-        assertNotNull(tablesResult);
+        MindsDbResponse tablesResult = sdk.getTables("new_db");
+        assertTrue(tablesResult.isSuccess());
         
         // Get schema for specific table
         when(httpResponse.body()).thenReturn("{\"columns\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"name\",\"type\":\"varchar\"}]}");
-        String schemaResult = sdk.getTableSchema("new_db", "customers");
-        assertNotNull(schemaResult);
+        MindsDbResponse schemaResult = sdk.getTableSchema("new_db", "customers");
+        assertTrue(schemaResult.isSuccess());
         
         verify(httpClient, times(4)).send(any(), any());
     }
@@ -103,32 +110,38 @@ class MindsDbSdkIntegrationTest {
     @Test
     @DisplayName("Model Lifecycle Management: Create -> Train -> Evaluate -> Retrain -> Delete")
     void testModelLifecycleManagement() throws Exception {
-        when(httpClient.send(any(), any())).thenReturn((HttpResponse) httpResponse);
+        when(httpClient.send(any(), any())).thenReturn(httpResponse);
+        when(httpResponse.statusCode()).thenReturn(200);
         
         // Create model
         when(httpResponse.body()).thenReturn("{\"status\":\"created\"}");
-        String createResult = sdk.createAndTrainModel("customer_churn", "crm_db", "customer_data", "will_churn");
-        assertEquals("Model created and getting trained successfully", createResult);
+        MindsDbResponse createResult = sdk.createAndTrainModel("customer_churn", "crm_db", "customer_data", "will_churn");
+        assertTrue(createResult.isSuccess());
+        assertEquals("Model created and training started successfully", createResult.getMessage());
         
         // Get model details
         when(httpResponse.body()).thenReturn("{\"name\":\"customer_churn\",\"status\":\"complete\",\"training_time\":\"2h 15m\"}");
-        String detailsResult = sdk.getModelDetails("customer_churn");
-        assertNotNull(detailsResult);
+        MindsDbResponse detailsResult = sdk.getModelDetails("customer_churn");
+        assertTrue(detailsResult.isSuccess());
+        assertEquals("customer_churn", detailsResult.getStringField("name"));
         
         // Get model accuracy
         when(httpResponse.body()).thenReturn("{\"accuracy\":0.87,\"precision\":0.85,\"recall\":0.89}");
-        String accuracyResult = sdk.getModelAccuracy("customer_churn");
-        assertNotNull(accuracyResult);
+        MindsDbResponse accuracyResult = sdk.getModelAccuracy("customer_churn");
+        assertTrue(accuracyResult.isSuccess());
+        assertEquals(0.87, accuracyResult.getDoubleField("accuracy"), 0.001);
         
         // Retrain model with new data
         when(httpResponse.body()).thenReturn("{\"status\":\"retraining\"}");
-        String retrainResult = sdk.retrainModel("customer_churn", "crm_db", "updated_customer_data");
-        assertEquals("Model 'customer_churn' retrained successfully", retrainResult);
+        MindsDbResponse retrainResult = sdk.retrainModel("customer_churn", "crm_db", "updated_customer_data");
+        assertTrue(retrainResult.isSuccess());
+        assertEquals("Model 'customer_churn' retrained successfully", retrainResult.getMessage());
         
         // Delete model
         when(httpResponse.body()).thenReturn("{\"status\":\"deleted\"}");
-        String deleteResult = sdk.deleteModel("customer_churn");
-        assertEquals("Model 'customer_churn' deleted successfully", deleteResult);
+        MindsDbResponse deleteResult = sdk.deleteModel("customer_churn");
+        assertTrue(deleteResult.isSuccess());
+        assertEquals("Model 'customer_churn' deleted successfully", deleteResult.getMessage());
         
         verify(httpClient, times(5)).send(any(), any());
     }
@@ -136,7 +149,8 @@ class MindsDbSdkIntegrationTest {
     @Test
     @DisplayName("Batch Prediction Workflow for Multiple Records")
     void testBatchPredictionWorkflow() throws Exception {
-        when(httpClient.send(any(), any())).thenReturn((HttpResponse) httpResponse);
+        when(httpClient.send(any(), any())).thenReturn(httpResponse);
+        when(httpResponse.statusCode()).thenReturn(200);
         
         // Prepare batch data
         Map<String, Object> customer1 = new HashMap<>();
@@ -165,9 +179,9 @@ class MindsDbSdkIntegrationTest {
             "]}"
         );
         
-        String batchResult = sdk.makeBatchPrediction("customer_churn", "will_churn", customers);
-        assertNotNull(batchResult);
-        assertTrue(batchResult.contains("predictions"));
+        MindsDbResponse batchResult = sdk.makeBatchPrediction("customer_churn", "will_churn", customers);
+        assertTrue(batchResult.isSuccess());
+        assertTrue(batchResult.getRawResponse().contains("predictions"));
         
         verify(httpClient, times(1)).send(any(), any());
     }
@@ -175,23 +189,26 @@ class MindsDbSdkIntegrationTest {
     @Test
     @DisplayName("View Management: Create -> Use -> Drop")
     void testViewManagement() throws Exception {
-        when(httpClient.send(any(), any())).thenReturn((HttpResponse) httpResponse);
+        when(httpClient.send(any(), any())).thenReturn(httpResponse);
+        when(httpResponse.statusCode()).thenReturn(200);
         
         // Create view
         when(httpResponse.body()).thenReturn("{\"status\":\"created\"}");
-        String createViewResult = sdk.createView("high_value_customers", 
+        MindsDbResponse createViewResult = sdk.createView("high_value_customers", 
             "SELECT * FROM customers WHERE total_spent > 10000");
-        assertEquals("View 'high_value_customers' created successfully", createViewResult);
+        assertTrue(createViewResult.isSuccess());
+        assertEquals("View 'high_value_customers' created successfully", createViewResult.getMessage());
         
         // Use view in custom query
         when(httpResponse.body()).thenReturn("{\"data\":[{\"customer_id\":1,\"name\":\"John Doe\",\"total_spent\":15000}]}");
-        String queryResult = sdk.executeCustomQuery("SELECT * FROM mindsdb.high_value_customers LIMIT 10");
-        assertNotNull(queryResult);
+        MindsDbResponse queryResult = sdk.executeCustomQuery("SELECT * FROM mindsdb.high_value_customers LIMIT 10");
+        assertTrue(queryResult.isSuccess());
         
         // Drop view
         when(httpResponse.body()).thenReturn("{\"status\":\"dropped\"}");
-        String dropViewResult = sdk.dropView("high_value_customers");
-        assertEquals("View 'high_value_customers' dropped successfully", dropViewResult);
+        MindsDbResponse dropViewResult = sdk.dropView("high_value_customers");
+        assertTrue(dropViewResult.isSuccess());
+        assertEquals("View 'high_value_customers' dropped successfully", dropViewResult.getMessage());
         
         verify(httpClient, times(3)).send(any(), any());
     }
@@ -199,11 +216,14 @@ class MindsDbSdkIntegrationTest {
     @Test
     @DisplayName("Error Handling: Invalid Model Name")
     void testErrorHandlingInvalidModel() throws Exception {
-        when(httpClient.send(any(), any())).thenReturn((HttpResponse) httpResponse);
+        when(httpClient.send(any(), any())).thenReturn(httpResponse);
+        when(httpResponse.statusCode()).thenReturn(404);
         when(httpResponse.body()).thenReturn("{\"error\":\"Model not found\",\"code\":404}");
         
-        String result = sdk.modelState("non_existent_model");
-        assertTrue(result.contains("error") || result.contains("not found"));
+        MindsDbResponse result = sdk.getModelState("non_existent_model");
+        assertFalse(result.isSuccess());
+        assertEquals(404, result.getStatusCode());
+        assertTrue(result.getRawResponse().contains("error"));
         
         verify(httpClient, times(1)).send(any(), any());
     }
@@ -211,7 +231,8 @@ class MindsDbSdkIntegrationTest {
     @Test
     @DisplayName("Custom Query Execution with Complex SQL")
     void testCustomQueryExecution() throws Exception {
-        when(httpClient.send(any(), any())).thenReturn((HttpResponse) httpResponse);
+        when(httpClient.send(any(), any())).thenReturn(httpResponse);
+        when(httpResponse.statusCode()).thenReturn(200);
         
         String complexQuery = """
             SELECT 
@@ -233,10 +254,37 @@ class MindsDbSdkIntegrationTest {
             "]}"
         );
         
-        String result = sdk.executeCustomQuery(complexQuery);
-        assertNotNull(result);
-        assertTrue(result.contains("Premium Widget"));
+        MindsDbResponse result = sdk.executeCustomQuery(complexQuery);
+        assertTrue(result.isSuccess());
+        assertTrue(result.getRawResponse().contains("Premium Widget"));
         
         verify(httpClient, times(1)).send(any(), any());
+    }
+
+    @Test
+    @DisplayName("SDK Builder Integration Test")
+    void testSdkBuilderIntegration() throws Exception {
+        // Create SDK using builder
+        MindsDbSdk customSdk = MindsDbSdkBuilder.create()
+            .baseUrl("http://custom.mindsdb.com/api")
+            .timeoutSeconds(60)
+            .build();
+
+        assertEquals("http://custom.mindsdb.com/api", customSdk.getBaseUrl());
+        assertEquals(Duration.ofSeconds(60), customSdk.getTimeout());
+    }
+
+    @Test
+    @DisplayName("Exception Handling Integration Test")
+    void testExceptionHandlingIntegration() throws Exception {
+        // Test parameter validation
+        assertThrows(MindsDbException.class, () -> sdk.deleteModel(null));
+        assertThrows(MindsDbException.class, () -> sdk.deleteModel(""));
+        assertThrows(MindsDbException.class, () -> sdk.makePrediction("model", "target", null));
+        assertThrows(MindsDbException.class, () -> sdk.makePrediction("model", "target", new HashMap<>()));
+        
+        // Test batch prediction with empty records
+        assertThrows(MindsDbException.class, () -> 
+            sdk.makeBatchPrediction("model", "target", Arrays.asList()));
     }
 }
