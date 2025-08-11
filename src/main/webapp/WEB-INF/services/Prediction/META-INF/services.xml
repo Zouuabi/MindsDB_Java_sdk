@@ -1,9 +1,61 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <service name="dbx">
     <description>
-        Make Prediction with Regression model
+        MindsDB SDK - Comprehensive API for model management, database operations, and predictions
     </description>
     <parameter name="ServiceClass">com.dbx.DbxImplementation</parameter>
+    
+    <operation name="listModels">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+    
+    <operation name="listDatabases">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+    
+    <operation name="deleteModel">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+    
+    <operation name="getModelDetails">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+    
+    <operation name="retrainModel">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+    
+    <operation name="getTables">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+    
+    <operation name="getTableSchema">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+    
+    <operation name="executeCustomQuery">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+    
+    <operation name="makeBatchPrediction">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+    
+    <operation name="getModelAccuracy">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+    
+    <operation name="disconnectDatabase">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+    
+    <operation name="createView">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
+    
+    <operation name="dropView">
+        <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
+    </operation>
     
     <operation name="makePrediction">
         <messageReceiver class="org.apache.axis2.rpc.receivers.RPCMessageReceiver"/>
